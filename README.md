@@ -9,7 +9,6 @@ This application is a file manager that dynamically displays folders, allows fil
 
    ```bash
    git clone https://github.com/tairkaa/webFileObserver.git
-   cd your-repository
 
 2. **Install dependencies:**
    
