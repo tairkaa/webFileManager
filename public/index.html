@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>File observer</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+    }
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+    .sidebar {
+      width: 200px;
+      background: #f0f0f0;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .logo {
+      width: 160px;
+      height: 160px;
+      background: #ccc;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .sidebar button {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: none;
+      background: #007bff;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+    .sidebar button:hover {
+      background: #0056b3;
+    }
+    .content {
+      flex: 1;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+    .upload-form {
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 4px;
+      background: #f8f9fa;
+    }
+    .upload-form button {
+      padding: 10px 20px;
+      background: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .upload-form button:hover {
+      background: #218838;
+    }
+    .file-button {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      background: #e9ecef;
+      padding: 10px;
+      border-radius: 4px;
+      color: #000;
+      transition: background 0.3s;
+      justify-content: space-between;
+    }
+    .file-button:hover {
+      background: #ced4da;
+    }
+    .file-info {
+      display: flex;
+      align-items: center;
+    }
+    .file-icon, .file-preview {
+      width: 50px;
+      height: auto;
+      margin-right: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .delete-btn {
+      background: #dc3545;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .delete-btn:hover {
+      background: #a71d2a;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar" id="sidebar">
+      <div class="logo">
+        <img src="logo.png" alt="Logotype">
+      </div>
+      <p>Dirs loading...</p>
+    </div>
+    <div class="content" id="content">
+      <p>Choose folder</p>
+    </div>
+  </div>
+
+  <script>
+    let currentFolder = '';
+
+    function getIcon(extension) {
+      let iconUrl = "";
+      switch(extension.toLowerCase()) {
+        case 'pdf':
+          iconUrl = "pdf.png";
+          break;
+        case 'txt':
+          iconUrl = "txt.png";
+          break;
+        case 'doc':
+        case 'docx':
+          iconUrl = "word.png";
+          break;
+        case 'xlsx':
+        case 'xls':
+          iconUrl = "xls.png";
+          break;
+        case 'ppt':
+        case 'pptx':
+          iconUrl = "powerpoint.png";
+          break;
+        case 'zip':
+        case 'rar':
+          iconUrl = "zip.png";
+          break;
+        case 'js':
+          iconUrl = "javascript.png";
+          break;
+        case 'css':
+          iconUrl = "css3.png";
+          break;
+        case 'html':
+          iconUrl = "html-5.png";
+          break;
+        default:
+          iconUrl = "logo.png";
+      }
+      return iconUrl;
+    }
+
+    function loadFolders() {
+      fetch('/api/getFolders')
+        .then(response => response.json())
+        .then(data => {
+          const sidebar = document.getElementById('sidebar');
+          const logoHTML = sidebar.querySelector('.logo').outerHTML;
+          if (!data.folders || data.folders.length === 0) {
+            sidebar.innerHTML = logoHTML + '<p>No dirs</p>';
+            return;
+          }
+          sidebar.innerHTML = logoHTML;
+          data.folders.forEach(folder => {
+            const btn = document.createElement('button');
+            btn.textContent = folder;
+            btn.setAttribute('data-folder', folder);
+            btn.addEventListener('click', () => loadFiles(folder));
+            sidebar.appendChild(btn);
+          });
+        })
+        .catch(err => {
+          document.getElementById('sidebar').innerHTML = `<p>Dirs loading error: ${err}</p>`;
+        });
+    }
+
+    function loadFiles(folder) {
+      currentFolder = folder;
+      const contentDiv = document.getElementById('content');
+      contentDiv.innerHTML = '<p>Loading files...</p>';
+
+      fetch(`/api/getFiles?folder=${encodeURIComponent(folder)}`)
+        .then(response => response.json())
+        .then(data => {
+          let html = `
+            <div class="upload-form">
+              <h3>Upload file to ${folder}</h3>
+              <button id="uploadBtn">Choose file</button>
+              <input type="file" id="fileInput" style="display:none">
+            </div>
+          `;
+
+          if (!data.files || data.files.length === 0) {
+            html += '<p>No files in dir.</p>';
+          } else {
+            data.files.forEach(file => {
+              const fileExtension = file.split('.').pop().toLowerCase();
+              let previewElement = '';
+              if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension)) {
+                previewElement = `<img class="file-preview" src="/files/${folder}/${encodeURIComponent(file)}" alt="${file}">`;
+              } else {
+                const iconUrl = getIcon(fileExtension);
+                previewElement = `<img class="file-icon" src="${iconUrl}" alt="${fileExtension}">`;
+              }
+              html += `
+                <div class="file-button">
+                  <div class="file-info">
+                    ${previewElement}
+                    <a href="/files/${folder}/${encodeURIComponent(file)}" download>${file}</a>
+                  </div>
+                  <button class="delete-btn" data-file="${file}">Delete</button>
+                </div>
+              `;
+            });
+          }
+          contentDiv.innerHTML = html;
+
+          const uploadBtn = document.getElementById('uploadBtn');
+          const fileInput = document.getElementById('fileInput');
+          uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+          });
+
+          fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file && confirm(`Upload file ${file.name}?`)) {
+              const formData = new FormData();
+              formData.append('file', file);
+              fetch(`/api/upload?folder=${encodeURIComponent(folder)}`, {
+                method: 'POST',
+                body: formData
+              })
+              .then(response => response.json())
+              .then(result => {
+                alert(result.message);
+                loadFiles(folder);
+              })
+              .catch(err => alert('Upload file error: ' + err));
+            }
+          });
+
+          document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const fileToDelete = btn.getAttribute('data-file');
+              if (confirm(`Delete file ${fileToDelete}?`)) {
+                fetch(`/api/deleteFile?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(fileToDelete)}`, {
+                  method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(result => {
+                  alert(result.message);
+                  loadFiles(folder);
+                })
+                .catch(err => alert('Delete file error: ' + err));
+              }
+            });
+          });
+        })
+        .catch(err => {
+          document.getElementById('content').innerHTML = `<p>Upload file error: ${err}</p>`;
+        });
+    }
+
+    window.addEventListener('load', loadFolders);
+  </script>
+</body>
+</html>
